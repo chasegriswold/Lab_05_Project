@@ -19,40 +19,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
+/* USER CODE BEGIN */
 
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+void init_Gyro(void);
 
 /* USER CODE END 0 */
 
@@ -62,30 +34,71 @@ void SystemClock_Config(void);
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  /* USER CODE BEGIN 2 */
-
-  /* USER CODE END 2 */
+	//Enable GPIOB and GPIOC
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+	
+	//Initialize (Clear) the GPIOB/C registers
+	GPIOB->OTYPER = 0;
+	GPIOB->MODER = 0;
+	
+	//SDA Setup --------
+	//Initialize PB11
+	GPIOB->MODER |= (1 << 23); //Enable AF Mode
+	GPIOB->OTYPER |= (1 << 11); //Open-drain
+	
+	//PB11 Alternate Function AF1 select: I2C2_SDA -> AF1 of PB11
+	//Bits [15:12] correspond to PB11 in the register -> AF1 is 0001.
+	GPIOB->AFR[1] |= (1 << 12); 
+	
+	//SCL Setup --------
+	// Initialize PB13
+	GPIOB->MODER |= (1 << 27); //Enable AF Mode
+	GPIOB->OTYPER |= (1 << 13); //Open-drain
+	
+	//PB13 Alternate Function AF5 select: I2C2_SCL -> AF5 of PB13
+	//Bits [23:20] correspond to PB13 in the register, -> AF5 is 0101.
+	GPIOB->AFR[1] |= (5 << 20);
+	
+	//Initialize PC0 and PB14
+	GPIOB->MODER |= (1 << 28); //General-Purpose Output
+	GPIOC->MODER |= (1 << 0);
+	GPIOC->OTYPER = 0; //Push-pull mode.
+	GPIOB->ODR |= (1 << 14); //PB14 set High
+	GPIOC->ODR |= (1 << 0);  //PC0 set High
+	
+	//I2C2 Peripheral RCC Enable (I2C)
+	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //Clock enable
+	
+	//Setting up the I2C2 Peripheral timing for SDA and SCL
+	//Set to 100kHz operation
+	I2C2->TIMINGR |= (1 << 28); //PSC = 1
+	I2C2->TIMINGR |= (0x4 << 20); //[23:20] SCLDEL (Data Setup Time)
+	I2C2->TIMINGR |=  (0x2 << 16); //[19:16] SDADEL (Data Hold Time)
+	I2C2->TIMINGR |= (0xF << 8); //[15:8] SCLH (SCL High Period)
+	I2C2->TIMINGR |= (0x13 << 0); //[7:0] SCLL (SCL Low Period)
+	
+	//Enable the I2C2 Peripheral
+	I2C2->CR1 |= (1 << 0); //Enable (PE Bit in CR1 Register)
+	
+	//My Key: 
+	//--------//Positive Y-Axis = RED LED
+	//--------//Negative Y-Axis = BLUE LED
+	//--------//Positive X-Axis = GREEN LED
+	//--------//Negative X-Axis = ORANGE LED
+	
+	//LED Setup
+	GPIOC->MODER |= (1 << 12);
+	GPIOC->MODER |= (1 << 14); 
+	GPIOC->MODER |= (1 << 16);
+	GPIOC->MODER |= (1 << 18);
+	
+	init_Gyro();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -134,6 +147,8 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
 
 /* USER CODE END 4 */
 
