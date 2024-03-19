@@ -1,5 +1,5 @@
 /* USER CODE BEGIN Header */
-/**
+/** CHASE GRISWOLD
   ******************************************************************************
   * @file           : main.c
   * @brief          : Main program body
@@ -25,7 +25,8 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN */
 void checkoffOne_Init(void);
 void init_Gyro(void);
-short init_xread(void);
+short rd_X(void);
+short rd_Y(void);
 
 /* USER CODE END 0 */
 
@@ -99,16 +100,35 @@ int main(void)
 	GPIOC->MODER |= (1 << 16);
 	GPIOC->MODER |= (1 << 18);
 	
-	checkoffOne_Init();
-	//init_Gyro();
+	//checkoffOne_Init(); // UNCOMMENT FOR FIRST CHECKOFF
+	
+	// COMMENT OUT other functions if doing first checkoff
+	init_Gyro();
+	signed short x = 0;
+	signed short y = 0;
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+		x = rd_X();
+		y = rd_Y();
+		
+		if (x > 1000){
+			GPIOC->BSRR |= (1 << 9) | (1 << 24);
+		}
+		else if (x < -1000) {
+			GPIOC->BSRR |= (1 << 8) | (1 << 25);
+		}
+		if (y > 1000){
+			GPIOC->BSRR |= (1 << 6) | (1 << 23);
+		}
+		else if (y < -1000){
+			GPIOC->BSRR |= (1 << 7) | (1 << 22);
+		}
+		
+		// Read and save the value of the X and Y axis data registers every 100 ms.
+		HAL_Delay(100); // Delay 100ms
   }
   /* USER CODE END 3 */
 }
@@ -150,12 +170,11 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-//First Checkoff "who am i register"
+//First Checkoff "who am i register" =====================================
 void checkoffOne_Init(void) {
-			//Transmit corresponding X-Axis address
 		I2C2->CR2 = 0; //Clear to start.
 		
-		//Set the Gyroscope Slave Address in SADD: 0x69
+		//Setup: Gyro Address in SADD: 0x69
 		//Set the number of bytes to transmit = 1
 		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
 		I2C2->CR2 |= (1 << 16);
@@ -227,14 +246,15 @@ void checkoffOne_Init(void) {
 		I2C2->CR2 |= (1 << 14); 
 		
 }
+//--------------------------------------------------------------==============
 
 void init_Gyro(void){
 		I2C2->CR2 = 0; //Clear to start.
 		
-		//Set the Gyroscope Slave Address in SADD: 0x69
-		I2C2->CR2 |= (0x6B << 1); //Slave address is [7:1]
+		//Setup: Gyro Address in SADD: 0x69
+		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
 		
-		//Set number of bytes to 2 (Address + new reg value).
+		//Set # of bytes = 2 (Address + Register value).
 		I2C2->CR2 |= (2 << 16);
 		
 		//Set the RD_WRN bit to 'WRITE' operation.
@@ -253,10 +273,8 @@ void init_Gyro(void){
 			}
 		}
 		
-		//Set address of CTRL_REG1 register to be sent on bus
+		//Set CTRL_REG1 register address for bus TX
 		I2C2->TXDR = 0x20;
-		
-		//GPIOC->ODR |= (1 << 6);
 		
 		//Wait for TXIS flag
 		while(((I2C2->ISR & 0x2) >> 1) != 1){
@@ -266,7 +284,7 @@ void init_Gyro(void){
 			}
 		}
 		
-		//Set value to enable X, Y axes and normal/sleep mode. (00001011)
+		//Setup: Enable Normal/Sleep mode and X/Y-Axes. (00001011)
 		I2C2->TXDR = 11;
 		
 		//Wait for TC flag
@@ -274,17 +292,15 @@ void init_Gyro(void){
 			
 		}
 		
-		//Set the stop bit to complete transaction.
+		//STOP bit: Release the I2C bus
 		I2C2->CR2 |= (1 << 14); 
-		
-
 }
 
-short init_xread(void){ 
-		//Transmit corresponding X-Axis address
+short rd_X(void){ 
+		//TX X-Axis address
 		I2C2->CR2 = 0; //Clear to start.
 		
-		//Set the Gyroscope Slave Address in SADD: 0x69
+		//Setup: Gyro Address in SADD: 0x69
 		//Set the number of bytes to transmit = 1
 		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
 		I2C2->CR2 |= (1 << 16);
@@ -305,9 +321,8 @@ short init_xread(void){
 			}
 		}
 		
-		//WHO_AM_I -------
 		//Bus send: X-Axis register address setup
-		I2C2->TXDR = 0xA8; //might be 0x0F
+		I2C2->TXDR = 0xA8;
 		
 		//Wait: Transfer Complete 'TC' flag
 		while(((I2C2->ISR & 0x40) >> 6) != 1){
@@ -317,7 +332,7 @@ short init_xread(void){
 		//Reset parameter: RD_WRN bit to 'READ' operation
 		//Set the Gyroscope Slave Address in SADD: 0x69
 		//Set number of bytes to 2
-		//Master setup: READ
+		//RD_WRN: READ
 		I2C2->CR2 = 0; //Clear to start.
 		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
 		I2C2->CR2 |= (2 << 16);
@@ -338,7 +353,7 @@ short init_xread(void){
 		}
 		
 		//Check RXDR Register
-		short low = I2C2->RXDR;
+		short x_CLow = I2C2->RXDR;
 		
 		//Wait for RXNE Flag
 		while(((I2C2->ISR & 0x4) >> 2) != 1){
@@ -349,7 +364,7 @@ short init_xread(void){
 		}
 		
 		//Check RXDR Register
-		short high = I2C2->RXDR;
+		short x_CHigh = I2C2->RXDR;
 		
 				
 		////Wait: Transfer Complete 'TC' flag
@@ -357,13 +372,93 @@ short init_xread(void){
 			
 		}
 		
-		//Set the stop bit
+		//STOP bit: Release the I2C bus
 		I2C2->CR2 |= (1 << 14); 
 		
-		high = high << 8;
-		high |= low;
+		x_CHigh = x_CHigh << 8;
+		x_CHigh |= x_CLow;
 		
-		return high;
+		return x_CHigh;
+}
+
+short rd_Y(void){
+		//SEND Y axis address
+		I2C2->CR2 = 0; //Clear to start.
+		
+		//Setup: Gyro Address in SADD: 0x69
+		//Set number of bytes to 1
+		//Set RD_WRN to WRITE
+		//Turn on start bit
+		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
+		I2C2->CR2 |= (1 << 16);
+		I2C2->CR2 &= ~(1 << 10);
+		I2C2->CR2 |= (1 << 13);
+
+		//Wait for TXIS flag
+		while(((I2C2->ISR & 0x2) >> 1) != 1){
+			if((I2C2->ISR & 0x10) >> 4){ //NACFK
+				//Red LED will turn on here if error
+				GPIOC->ODR |= (1 << 6);
+			}
+		}
+		
+		//Set Y-Axis register address for bus
+		I2C2->TXDR = 0xAA;
+		
+		//Wait: Transfer Complete 'TC' flag
+		while(((I2C2->ISR & 0x40) >> 6) != 1){
+			
+		}
+		
+		//Reset parameter: RD_WRN bit to 'READ' operation ----
+		//Set the Gyroscope Slave Address in SADD: 0x69
+		//Set number of bytes to 2
+		//RD_WRN: READ
+		I2C2->CR2 = 0; //Clear to start.
+		I2C2->CR2 |= (0x69 << 1); //Slave address is [7:1]
+		I2C2->CR2 |= (2 << 16);
+		I2C2->CR2 |= (1 << 10);
+		
+		//Start bit: 'Restart Condition'
+		I2C2->CR2 |= (1 << 13);
+		
+		//Wait for RXNE flag
+		while(((I2C2->ISR & 0x4) >> 2) != 1){
+			if((I2C2->ISR & 0x10) >> 4){ //NACKF error
+				//Red LED Error indicator
+				GPIOC->ODR |= (1 << 6);
+				
+			}
+		}
+		
+		//Check RXDR Register
+		short y_CLow = I2C2->RXDR;
+		
+		
+		//Wait for RXNE flag
+		while(((I2C2->ISR & 0x4) >> 2) != 1){
+			if((I2C2->ISR & 0x10) >> 4){ //NACKF error
+				//Red LED error indicator
+				GPIOC->ODR |= (1 << 6);
+				
+			}
+		}
+		
+		//Check RXDR Register
+		short y_CHigh = I2C2->RXDR;
+				
+		//Wait: Transfer Complete 'TC' flag
+		while(((I2C2->ISR & 0x40) >> 6) != 1){
+			
+		}
+		
+		//STOP bit: Release the I2C bus
+		I2C2->CR2 |= (1 << 14); 
+		
+		y_CHigh = y_CHigh << 8;
+		y_CHigh |= y_CLow;
+		
+		return y_CHigh;
 }
 
 /* USER CODE END 4 */
